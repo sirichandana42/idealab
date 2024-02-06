@@ -1,0 +1,173 @@
+#include <Adafruit_BMP085.h>
+#include "DHT.h"
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <WiFi.h>
+#include <LiquidCrystal_I2C.h>
+#include "ThingSpeak.h"
+//---------------------------------------------------------------------------------------------------------------------------------------------
+const int ldrreading = 34;
+#define rainDigital 5
+#define DHTPIN 4  
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+const int oneWireBus = 14;
+OneWire oneWire(oneWireBus);
+DallasTemperature sensors(&oneWire);
+const int potPin=35;
+float ph;
+float Value=0;
+#define BMP_SDA 21
+#define BMP_SCL 22
+Adafruit_BMP085 bmp085;
+LiquidCrystal_I2C lcd(0x3F, 16, 2);
+byte degree_symbol[8] = 
+              {
+                0b00111,
+                0b00101,
+                0b00111,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000,
+                0b00000
+              };
+//---------------------------------------------------------------------------------------------------------------------------------------------
+const char* ssid = "SRKR_IDEALAB";   
+const char* password = "Tech$9889"; 
+WiFiClient  client;
+unsigned long myChannelNumber =  1909372 ;
+const char *myWriteAPIKey = "GM7L6FH0Z9KS4HQQ";
+unsigned long lastTime = 0;
+unsigned long Delay = 3000;
+//--------------------------------------------------------------------------------------------------------------------------------------------- 
+void setup() {
+Serial.begin(115200);
+WiFi.mode(WIFI_STA);  
+//--------------------------------------------------------------------------------------------------------------------------------------------- 
+pinMode(rainDigital,INPUT);
+dht.begin();
+analogReadResolution(10);
+sensors.begin();
+pinMode(potPin,INPUT);
+Serial.println("Initializing bmp");
+boolean status = bmp085.begin(0x76);
+lcd.begin();
+lcd.backlight();
+lcd.createChar(0, degree_symbol);
+ThingSpeak.begin(client); 
+}
+//--------------------------------------------------------------------------------------------------------------------------------------------- 
+void loop() {
+  // put your main code here, to run repeatedly:
+if ((millis() - lastTime) > Delay) 
+{    
+    
+    if(WiFi.status() != WL_CONNECTED)
+    {
+      Serial.print("Connecting...");
+      while(WiFi.status() != WL_CONNECTED)
+      {
+        WiFi.begin(ssid, password); 
+        delay(5000);     
+      } 
+      Serial.println("\nConnected.");
+    }    
+//--------------------------------------------------------------------------------------------------------------------------------------------- 
+int LDR_Reading = analogRead(ldrreading);
+int rainDigitalVal = digitalRead(rainDigital); 
+float h = dht.readHumidity();
+sensors.requestTemperatures();
+float temperatureC = sensors.getTempCByIndex(0);
+Value= analogRead(potPin);
+float voltage=Value*(3.3/4095.0);
+ph=(3.3*voltage);
+float temp = bmp085.readTemperature(); 
+float pressure = (bmp085.readPressure()/100); 
+float altitude = (bmp085.readAltitude()*-0.0295333727); 
+//-------------------------------------------------------------------------------------------------------------------------------------------
+Serial.print("LDR Reading: ");
+Serial.print(LDR_Reading);
+Serial.print("\n");
+Serial.print("Rain Reading: ");
+Serial.print(rainDigitalVal);
+Serial.print("\n");
+Serial.print(F("Humidity: "));
+Serial.print(h);
+Serial.print("%");
+Serial.print("\n");
+Serial.print("Temperature Reading: ");
+Serial.print(temperatureC);
+Serial.println("ºC");
+Serial.print("\n");
+Serial.print("pH value: ");
+Serial.print(ph);
+Serial.print("\n");
+Serial.print("temperature: ");
+Serial.print(temp);
+Serial.println("*C");
+Serial.print("\n");
+Serial.print("Pressure: ");
+Serial.print(pressure);
+Serial.println("hPa");
+Serial.print("\n");
+Serial.print("Altitude: ");
+Serial.print(altitude);
+Serial.println("m");
+//--------------------------------------------------------------------------------------------------------------------------------------------- 
+ThingSpeak.setField(1, LDR_Reading);
+ThingSpeak.setField(2, rainDigitalVal);
+ThingSpeak.setField(3, h);
+ThingSpeak.setField(4, temperatureC);
+ThingSpeak.setField(5, ph);
+ThingSpeak.setField(6, temp);
+ThingSpeak.setField(7, pressure);
+ThingSpeak.setField(8, altitude);
+delay(3000);
+//---------------------------------------------------------------------------------------------------------------------------------------------
+lcd.setCursor(0,0);
+lcd.print("LDR_Reading =");
+lcd.print(LDR_Reading);
+delay(2000);
+lcd.setCursor(0,0);
+lcd.print("Rain_Reading_ =");
+lcd.print(rainDigitalVal);
+delay(2000); 
+lcd.setCursor(0,0);
+lcd.print("Humidity_%=");
+lcd.print(h);
+delay(2000);
+lcd.setCursor(0,0);
+lcd.print("Water_Temp=");
+lcd.print(temperatureC);
+delay(2000);
+lcd.setCursor(0,0);
+lcd.print("pH_value_w=");
+lcd.print(ph);
+delay(2000);
+lcd.setCursor(0,0);
+lcd.print("temperat *C=");
+lcd.print(temp);
+delay(2000);
+lcd.setCursor(0,0);
+lcd.print("press_atm=");
+lcd.print(pressure);
+delay(2000);
+lcd.setCursor(0,0);
+lcd.print("altitude(m)=");
+lcd.print(altitude);
+delay(2000);
+//---------------------------------------------------------------------------------------------------------------------------------------------
+int Data1 = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey); 
+
+if(Data1 <= 200)
+{
+Serial.println("Waiting for the next input........." );
+}
+else
+{
+Serial.println("Problem updating channel. HTTP error code " + String(Data1) );
+}
+lastTime = millis();
+}
+}
